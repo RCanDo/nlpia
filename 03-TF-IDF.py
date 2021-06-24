@@ -70,6 +70,7 @@ times_harry_appears = bag_of_words['harry']
 
 num_unique_words = len(bag_of_words)
 
+#!!! Term/Token Frequency  within ONE document !!!
 tf = times_harry_appears / num_unique_words
 round(tf, 4)
 2/11
@@ -139,18 +140,18 @@ lexicon
 len(lexicon)  # 18
 
 #%% p. 78
-from collections import OrderedDict
+from collections import OrderedDict                                        #!!!
 zero_vector = OrderedDict((token, 0) for token in lexicon)
 zero_vector
 
 #%%
 import copy
 docs_vectors = []
-for d in docs:
+for doc in docs:
     zv = copy.copy(zero_vector)
-    tokens = tokenizer.tokenize(d.lower())
+    tokens = tokenizer.tokenize(doc.lower())
     for k, v in Counter(tokens).items():
-        zv[k] = v / len(lexicon)
+        zv[k] = v / len(lexicon)              #??? /len(lexicon) ???  why not /len(doc)
     docs_vectors.append(zv)
 
 docs_vectors
@@ -229,9 +230,13 @@ len(brown.words())   # 1 161 192
 
 brown.tagged_words()[:10]   # part-of-speech tagging
 
+dir(brown)
+
 #%%
 puncs = set(', . : ; ? ! \' \\ \" ` - -- [ ] ( )'.split())
 puncs
+
+puncs.intersection(brown.words())   #!!! Brown Corpus contains punctuations
 
 brown_words = [w.lower() for w in brown.words() if w not in puncs]
 brown_counts = Counter(brown_words)
@@ -253,6 +258,8 @@ from typing import List, Tuple, Dict, Set, Union, Optional, NewType
 
 #%%
 def terms_freqs(doc: str) -> Dict[str, int]:
+    """ Term/Token Frequency within ONE document !!!
+    """
 
     doc = doc.lower()
     tokens = tokenizer.tokenize(doc)
@@ -276,39 +283,61 @@ tf_history['kite']
 tf_intro['and']
 tf_history['and']
 
-tf_intro['china']
+tf_intro['china']    #! Error
 tf_history['china']
 
 #%% tf-idf == Term Frequency - Inverse Document Frequency
 import copy
 
 def tfidf(corpus: Dict[str, str]) -> Tuple[Dict[str, float], Dict[str, float]]:
+    """
+    TF-IDF : Term/Token Frequency--Inverse Document Frequency
+    d - document
+    c = {d: documents} - corpus, fixed set of documents
+    w - word
+    l - lexicon = U_d {w: w in d} - all unique words/terms/tokens(?!) in the whole corpus
+    N(c) = #c - number of documents in the corpus c
+    N(d) = #d - number of words/terms/tokens in the document d
+    N(w, d) - number of word w appearances in a document d
+    N(w) = #{d: w in d} - number of documents with a word w
 
-    n = len(corpus)
-    tfs = {k: terms_freqs(doc) for k, doc in corpus.items()}
+    TF(w, d) = N(w, d) / N(d) - word frequency in a document
+    DF(w, c) = N(w) / N(c) - frequency of documents with given word wrt whole corpus
+    IDF(w, c) = 1 / DF(w, c)
+
+    TFIDF(w, d, c) = TF(w, d) / DF(w, c) == TF(w, d) * IDF(w, c)
+    """
+
+    Nc = len(corpus)
+
+    # Term Frequencies {d: {w: TF(w, d), w in d}, d in c}
+    TFs = {k: terms_freqs(doc) for k, doc in corpus.items()}   # Dict[Dict[]]
 
     lexicon = set()
-    for tf in tfs.values():
+    for tf in TFs.values():
         lexicon |= set(tf.keys())
 
-    lex_doc_freqs = {word: 0 for word in lexicon}
+    # Document Frequency for each word from lexicon
+    DFs = {word: 0 for word in lexicon}
 
-    tfidfs = {k: lex_doc_freqs.copy() for k in corpus.keys()}
+    tfidfs = {k: DFs.copy() for k in corpus.keys()}
 
-    # fill  lex_doc_freqs  with document frequencies
+    # fill  DFs  with document frequencies:
+    # = how many documents with a given word
     for word in lexicon:
-        for doc in tfs.values():
-            if word in doc.keys():
-                lex_doc_freqs[word] += 1
+        DFs[word] = sum(word in doc.keys() for doc in TFs.values())
+        #for doc in TFs.values():
+        #    if word in doc.keys():
+        #        DFs[word] += 1
 
-    # go back to  tfidfs  -- fill wit  tf-idfs  values
+    # go back to  tfidfs  -- fill with tf-idfs  values
     for doc in tfidfs.keys():
         for word in tfidfs[doc].keys():
-            tfidfs[doc][word] = tfs[doc].get(word, 0)
-            tfidfs[doc][word] *= (n / lex_doc_freqs[word])
-            # tf[word] *= np.log(n / lex_doc_freqs[word])   # good for big corpus
+            tfidfs[doc][word] = TFs[doc].get(word, 0)
+            tfidfs[doc][word] *= (Nc / DFs[word])
+            # tf[word] *= np.log(n / DFs[word])   # good for big corpus
 
-    return lex_doc_freqs, tfidfs, tfs
+    return DFs, tfidfs, TFs
 
 
 #%%
@@ -341,7 +370,7 @@ def get_answer(query: str, docs: List[str]):
     lex, tfidfs, tfs = tfidf(do_corpus(query, docs))
     mm = np.array(list(list(doc.values()) for doc in tfidfs.values()))
     mmn = mm / np.linalg.norm(mm, axis=1, keepdims=True)
-    corrs = mmn[0, :] @ mmn.T
+    corrs = mmn[0, :] @ mmn.T    # 0 is for query
     which = corrs[1:].argmax()
     return docs[which], corrs
 
@@ -366,6 +395,11 @@ corpus = docs
 vectorizer = TfidfVectorizer(min_df=1)
 model = vectorizer.fit_transform(corpus)
 print(model.todense().round(2))
+
+model     # <3x16 sparse matrix of type '<class 'numpy.float64'>'
+    	  # with 23 stored elements in Compressed Sparse Row format>
+print(model)
+dir(model)
 
 #%%
 

@@ -13,6 +13,11 @@ keywords: [tokenization, stemming, lemmatizing,
            n-gram, stop word, term, token, bag of words, sentiment]
 description: |
     Basic text preprocessing in examples.
+    1. tokenizer
+    2. removing stop-words
+    3. lemmatizer
+    4. stemmer
+    5. sentiment
 remarks:
     - work interactively (in Spyder)
     - install NLPIA, see sources below
@@ -53,15 +58,18 @@ sentence = """Thomas Jefferson begun building Monticello at the age of 26."""
 sentence.split()
 str.split(sentence)
 
+from collections import Counter
+Counter(sentence.split())
+
 #%% p.35
 
 import numpy as np
-token_sequence = str.split(sentence)
-vocab = sorted(set(token_sequence))
+token_sequence = str.split(sentence)   #!!! tokens seq.   do not have to be different
+vocab = sorted(set(token_sequence))    #!!! tokens set    set of different tokens
 print(vocab)
 
-num_tokens = len(token_sequence)  # nr of words
-vocab_size = len(vocab)           # nr of different words
+num_tokens = len(token_sequence)  #!!! nr of words
+vocab_size = len(vocab)           #!!! nr of **different** words
 
 onehot_vectors = np.zeros((num_tokens, vocab_size), int)
 
@@ -77,16 +85,18 @@ df
 df[df==0] = ''
 df
 
-#%% p.40
+#%% p.40 BOW - Bag Of Words (tokens) - set of words/tokens for one document
 sentence_bow = {}
 for token in sentence.split():
     sentence_bow[token] = 1
+# this won't work if tokens repeat in the sentence
 
 sentence_bow
 sorted(sentence_bow.items())
 
 #%% p.40
 token_freq = [(token, 1) for token in sentence.split()]
+# this won't work if tokens repeat in the sentence
 token_freq
 dict(token_freq)                                      #!
 token_freq_s = pd.Series(dict(token_freq))
@@ -106,7 +116,7 @@ print(sentences)
 #%%
 corpus = {}
 for i, sent in enumerate(sentences.split('\n')):
-    corpus['sent{}'.format(i)] = dict((tok, 1) for tok in sent.split())
+    corpus['sent{}'.format(i)] = dict(Counter(sent.split()))
 
 import pprint as pp
 pp.pprint(corpus)
@@ -170,21 +180,29 @@ import re
 sentence
 
 re.split(r' ', sentence)
-for w in re.split(r'[-\s.,;!?]+', sentence): print(w)
+for w in re.split(r'[-\s.,;!?]+', sentence): print(w)   #!!!
 
 #%% compile regexp
 pattern = re.compile(r'[-\s.,;!?]+')
 pattern.split(sentence)
 
+#%%
+sentence
+pattern
+tokens = pattern.split(sentence)
+tokens = [x for x in tokens if x and x not in '- \t\n.,;!?']  #!!! we still need to rmv sth
+tokens
+
+#%% built-in tokenizers
 #%% p.46
 
-from nltk.tokenize import RegexpTokenizer
+from nltk.tokenize import RegexpTokenizer   #!!!
 tokenizer = RegexpTokenizer(r'\w+|$[0-9.]+|\S+')
 tokenizer.tokenize(sentence)
 
 #%% p.47
 
-from nltk.tokenize import TreebankWordTokenizer
+from nltk.tokenize import TreebankWordTokenizer  #!!!
 
 sentence1 = """Monticello wasn't designated as UNESCO World Heritage Site until 1987."""
 
@@ -192,7 +210,7 @@ tokenizer1 = TreebankWordTokenizer()
 tokenizer1.tokenize(sentence1)
 
 #%% p.48 tokenize informal text from social networks - catches emoticons etc.
-from nltk.tokenize.casual import casual_tokenize
+from nltk.tokenize.casual import casual_tokenize  #!!!
 
 message = """RT @TJMonticello Best day everrrrrr at Monticello.\
 Awesommmmmmeeeeee day :*)"""
@@ -203,13 +221,7 @@ casual_tokenize(message, reduce_len=True, strip_handles=True)
 #%%
 #%% p.48 n-grams
 
-from nltk.util import ngrams  # generator
-
-sentence
-pattern
-tokens = pattern.split(sentence)
-tokens = [x for x in tokens if x and x not in '- \t\n.,;!?']
-tokens
+from nltk.util import ngrams  #!!! generator
 
 list(ngrams(tokens, 2))
 list(ngrams(tokens, 3))
@@ -256,7 +268,7 @@ re.findall('^(.*ss|.*)(s)?$', 'housess')     # the same
 
 
 def stem(phrase):
-    tokens = phrase.lower().strip()
+    tokens = phrase.lower().split()
     tokens2 = [re.findall('^(.*ss|.*?)(s)?$', word)[0][0].strip("'") for word in tokens]
     return " ".join(tokens2)
 
@@ -264,13 +276,12 @@ def stem(phrase):
 stem('houses')
 stem("Doctor House's calls")
 
-???
-
 #%%
-from nltk.stem.porter import PorterStemmer
+from nltk.stem.porter import PorterStemmer   #!!!
 stemmer = PorterStemmer()
 
-phrase = "dish washer's washed dishes"
+phrase = "dish washer's washing dishes"
+[stemmer.stem(w) for w in phrase.split()]
 ' '.join([stemmer.stem(w).strip("'") for w in phrase.split()])
 
 # see: https://github.com/jedijulia/porter-stemmer/blob/master/stemmer.py
@@ -280,7 +291,7 @@ phrase = "dish washer's washed dishes"
 
 #%% p.61
 nltk.download('wordnet')
-from nltk.stem import WordNetLemmatizer
+from nltk.stem import WordNetLemmatizer   #!!!
 lemmatizer = WordNetLemmatizer()
 
 #%%
@@ -312,9 +323,19 @@ lemmatizer.lemmatize('done', pos='a')      # done
 lemmatizer.lemmatize('done', pos='v')      # do
 
 #%%
-lemmatizer.lemmatize('has')             # ha
+lemmatizer.lemmatize('has')             # ha  #???
 lemmatizer.lemmatize('has', pos='v')    # have
 lemmatizer.lemmatize('has', pos='a')    # has
+lemmatizer.lemmatize("hasn't")          # hasn't
+stemmer.stem("hasn't")
+lemmatizer.lemmatize("wasn't")          # wasn't
+stemmer.stem("don't")
+
+#%%
+lemmatizer.lemmatize("dont't")          # don't
+stemmer.stem("don't")
+lemmatizer.lemmatize("fall back")          # fall back
+
 
 #%%
 #%% sentiment analysis
@@ -325,16 +346,18 @@ nltk.sentiment.vader
 # but here we use
 pip install vaderSentiment
 """
-from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
+from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer  #!!!
 sa = SentimentIntensityAnalyzer()
 
 #%%
 sa.lexicon
 type(sa.lexicon)   # dict
+#!!! neither lemmatized nor stemmed (bad); no stop-words (good)
+
 len(sa.lexicon)    # 7503
 
+# only tokens with space i.e. few words
 [(tok, score) for tok, score in sa.lexicon.items() if " " in tok]
-# only four such tokens
 
 #%%
 text1 = """Python is very readable and it's great for NLP."""
@@ -370,6 +393,9 @@ movies.columns
 movies.head().round(2)
 movies.describe().round(2)    # scores between -4 and 4
 
+movies.sentiment.plot.kde()
+movies.sentiment.plot.hist(bins=30)
+
 #%%
 import pandas as pd
 # pd.set_option('display.width', 300)
@@ -378,18 +404,29 @@ pd.set_option('display.max_columns', 300)
 pd.set_option('display.max_rows', 300)
 
 #%%
-from nltk.tokenize import casual_tokenize
+from nltk.tokenize import casual_tokenize   #!!!
 from collections import Counter
 
+# BOW - collection of all words (tokens!) from all docs in corpus
 bags_of_words = []
 for txt in movies.text:
     bags_of_words.append(Counter(casual_tokenize(txt)))
 
-#%%
+len(bags_of_words)  # 10605
+bags_of_words[:5]
+
+#%% to data frame
 df_bows = pd.DataFrame.from_records(bags_of_words)
 df_bows = df_bows.fillna(0).astype(int)
 df_bows.shape     # 10605, 20756
 df_bows.head()
+
+#%%
+"""
+Notice that we didn't make any tokens improvements: only `casual_tokenizer`,
+_stop words_ not removed; not transformed to lower case;
+neither _stemmers_ nor _lemmatizers_ applied.
+"""
 
 #%%
 from sklearn.naive_bayes import MultinomialNB
@@ -401,13 +438,18 @@ model01.fit(df_bows, movies.sentiment > 0)     # .fit()  works in place
 #%% comparing fit with true
 model01.predict_proba(df_bows)
 model01.classes_  # [False, True]
-model01.predict_proba(df_bows)[:3, 1]   # score for True i.e. positive sentiment
-model01.predict_proba(df_bows)[:3, 1] * 8 - 4  # scaling to (-4, 4)
-movies.iloc[:3, :]   # more or less...
+model01.predict_proba(df_bows)[:5, 1]   # score for True i.e. positive sentiment
+model01.predict_proba(df_bows)[:5, 1] * 8 - 4  # scaling to (-4, 4)
+movies.iloc[:5, :]   # more or less...
 movies['text'][1]
+
+model01.predict_proba(df_bows)[-5:, 1]   # score for True i.e. positive sentiment
+model01.predict_proba(df_bows)[-5:, 1] * 8 - 4  # scaling to (-4, 4)
+movies.iloc[-5:, :]
 
 #%% other options of model.  !!! check it !!!
 model01.coef_
+model01.coef_.shape   # (1, 20756)
 model01.intercept_
 model01.get_params()
 model01.class_prior
@@ -422,8 +464,8 @@ movies.error.mean().round(2)   # 1.87
 #%%
 movies['sentiment_is_positive'] = (movies.sentiment > 0).astype(int)
 movies['predicted_is_positive'] = (movies.predicted_sentiment > 0).astype(int)
-movies['prediction_wrong'] = (movies.sentiment_is_positive - movies.predicted_is_positive).astype(int)
-movies.prediction_wrong.abs().sum()   # 695
+movies['prediction_wrong'] = (movies.sentiment_is_positive - movies.predicted_is_positive).astype(int).abs()
+movies.prediction_wrong.sum()   # 695
 
 movies.prediction_wrong.abs().sum()/len(movies)        # 0.0655   error rate
 1 - movies.prediction_wrong.abs().sum()/len(movies)    # 0.93446  correct rate
@@ -475,10 +517,10 @@ product['sentiment_is_positive'] = (product.sentiment > 0).astype(int)
 product['predicted_sentiment'] = model01.predict_proba(df_bows_22)[:, 1] * 8 - 4
 product['predicted_is_positive'] = (product.predicted_sentiment > 0).astype(int)
 
-product['prediction_wrong'] = (product.sentiment_is_positive - product.predicted_is_positive).astype(int)
+product['prediction_wrong'] = (product.sentiment_is_positive - product.predicted_is_positive).astype(int).abs()
 
-product['prediction_wrong'].abs().sum()
-product['prediction_wrong'].abs().sum()/3546   # 0.44275
+product['prediction_wrong'].sum()
+product['prediction_wrong'].sum()/3546   # 0.44275
 
 # no good...
 
