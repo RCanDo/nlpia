@@ -1,4 +1,4 @@
-# -*- coding: utf-8 -*-
+-*- coding: utf-8 -*-
 """
 Created on Fri Jun 25 09:55:59 2021
 
@@ -64,11 +64,11 @@ pd.options.display.width = 120
 
 #%%
 """ (1)
-T = M * F,   (t x d) = (t x n) * (n x d),  d = len(corpus), n=len(vocab), t=len({topics})
+T = M * F,   (t x d) = (t x n) * (n x d),  d = len(corpus), n=len(vocab), t=len(topics)
 topic-document scores
     topic-words weights (aquired from ...? - to be shown later)
         words-document weights - usually TF-IDF; i.e.
-        F = [f_1, ..., f_d],  f_i - TF-IDF vector for i-th doc
+        F = [f_1 ... f_d],  f_i - TF-IDF vector for i-th doc
             where vocab is taken from the whole corpus
 """
 #%% p.101 thought experiment
@@ -268,7 +268,7 @@ prettify_tdm(**bow_svd)
 
 bow_svd['tdm']          # (m x n)  word-doc
 bow_svd['u'].round(2)   # m2       word-topic
-bow_svd['s'].round(2)   # r = min(m, n)   topic variations; just vector - may be transform to (n x m) as below (*)
+bow_svd['s'].round(2)   # r = min(m, n)   topic variations; just vector - may be transform to (m x n) as below (*)
 bow_svd['vt'].round(2)  # n2       topic-doc
 
 #%%
@@ -289,14 +289,29 @@ W.round(1)
 bow_svd['tdm']           #!!! OK !!!
 
 #%% Term-document matrix reconstruction error, p.122
-errs = []
+errs = np.array([])
 Sprim = S.copy()
 for d in range(len(s), 0, -1):  # print(d)
-    Sprim[d-1, d-1] = 0
+    print(Sprim.round(2))
     Wprim = U @ Sprim @ Vt
     err = np.sqrt( sum((bow_svd['tdm'] - Wprim).values.flatten() ** 2) )
-    errs += err
-print(errs)
+    print(err)
+    errs += [err]
+    if d > 0:
+        Sprim[d-1, d-1] = 0
+print([round(x, 2) for x in errs])
+
+#%%b
+from sklearn.feature_extraction.text import TfidfVectorizer
+from nltk.tokenize.casual import casual_tokenize
+
+tfidf = TfidfVectorizer(tokenizer = casual_tokenize)
+
+tfidf.fit(raw_documents = bow_svd['docs'])
+
+#%%
+
+#%%
 
 #%%
 

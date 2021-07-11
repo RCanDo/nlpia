@@ -291,7 +291,7 @@ import copy
 
 def tfidf(corpus: Dict[str, str]) -> Tuple[Dict[str, float], Dict[str, float]]:
     """
-    TF-IDF : Term/Token Frequency--Inverse Document Frequency
+    TF-IDF : Term/Token Frequency - Inverse Document Frequency
     d - document
     c = {d: documents} - corpus, fixed set of documents
     w - word
