@@ -79,7 +79,7 @@ TFIDF._fields
 # random example of TF-IDF list (for some imaginary doc)
 tfidf = TFIDF(*np.random.rand(6).round(3))
 tfidf
-pd.Series(tfidf)  # lost names :(
+pd.Series(tfidf)  # names lost :(
 pd.Series(tfidf, index=tfidf._fields)   # this should be automatic !!!
 
 # topic weights for each word (arbitrary example)
@@ -94,7 +94,7 @@ M
 M @ tfidf  # luckily it works for named tuples
 
 #%%
-#%% How to acquire weights for W?
+#%% How to acquire weights for M?
 
 #%%
 #%% LDA classifier (Linear Disccriminant Analysis)
