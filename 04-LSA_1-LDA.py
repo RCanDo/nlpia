@@ -16,7 +16,7 @@ title: Latent Semantic Analysis
 subtitle:
 version: 1.0
 type: tutorial
-keywords: [LSA, semantic, topic, TF-IDF]
+keywords: [LSA, semantic, topic, TF-IDF, LDA]
 description: |
     Latent Semantic Analysis
 remarks:
@@ -27,7 +27,7 @@ todo:
 sources:
     - title: Natural Language Processing in Action
       chapter: 04 - Finding meaning in word counts (semantic analysis)
-      pages: 97-xx
+      pages: 97-115
       link: "D:\bib\Python\Natural Language Processing in Action.pdf"
       date: 2019
       authors:
@@ -52,11 +52,44 @@ file:
               - akasp666@google.com
 """
 #%%
+from rcando.ak.builtin import * #flatten, paste
+from rcando.ak.nppd import * #data_frame
+import os, sys, json
+
+ROOT = json.load(open('root.json'))
+WD = os.path.join(ROOT['Projects'], "AIML/NLPA/")   #!!! adjust
+os.chdir(WD)
+
+print(os.getcwd())
+
+#%%
 import numpy as np
 import pandas as pd
 from collections import namedtuple
 
+"""
+link: https://stackoverflow.com/questions/11707586/how-do-i-expand-the-output-display-to-see-more-columns-of-a-pandas-dataframe
+"""
+#pd.options.display.width = 0  # autodetects the size of your terminal window - does it work???
+pd.set_option("display.max_columns", None)
+pd.set_option("display.max_rows", None)
+# pd.options.display.max_rows = 500         # the same
+pd.set_option('display.max_seq_items', None)
+
+pd.set_option('display.expand_frame_repr', False)
+pd.set_option('display.precision', 3)
+
+# %% other df options
+pd.set_option('display.width', 1000)
+pd.set_option('max_colwidth', None)
+#pd.options.display.max_colwidth = 500
+# the same
+
+#%%
 import matplotlib.pyplot as plt
+plt.style.use('dark_background')
+# see `plt.style.available` for list of available styles
+
 import seaborn as sn
 
 #%%
@@ -106,6 +139,7 @@ sms         # [4837 rows x 2 columns]
 sms.dtypes  # spam     int64;  text    object
 
 sms.spam.sum()   # 638
+638/4837         # 0.132
 
 #%%
 from sklearn.feature_extraction.text import TfidfVectorizer
@@ -118,7 +152,7 @@ tfidf.fit(raw_documents = sms.text)
 tfidf.vocabulary  # None
 tfidf.vocabulary_  # whole vocab {word: index}
 len(tfidf.vocabulary_)  # 9232
- plt.plot(sorted(tfidf.vocabulary_.values()))
+plt.plot(sorted(tfidf.vocabulary_.values()))
  # so why this dict is so mixed ? why it's a dict not just list ?
 
 sms_tfidf = tfidf.transform(raw_documents = sms.text)
@@ -128,6 +162,7 @@ sms_tfidf
 dir(sms_tfidf)
 sms_tfidf.shape   # (4837, 9232)
 
+#%%
 """
 Thus we obtain matrix with
 4837 rows for each doc and
@@ -148,7 +183,6 @@ ax.set_aspect(1)
 res = sn.heatmap(sms_tfidf_arr) #, cmap='YlGnBu')
 #! Wow! It's hard to see any points different from 0 - very sparse matrix
 
-
 #%% LDA - Linear Discriminant Analysis
 mask = sms.spam.astype(bool).values
 mask
@@ -156,19 +190,29 @@ centroid_spam = sms_tfidf[mask].mean(axis=0)       # matrix([[0.06377591, 0.0041
 centroid_spam = sms_tfidf_arr[mask].mean(axis=0)   # array(  [0.06377591, 0.0041675 , 0.00056204, ..., 0., 0.,0.] )
 centroid_ham  = sms_tfidf_arr[~mask].mean(axis=0)  # array
 
-# model
+# "model"
 direction = centroid_spam - centroid_ham
-# score
+plt.plot(direction)
+
+#%% score
 spaminess_score = sms_tfidf_arr.dot(direction)     #!!!
 
 spaminess_score[mask].mean()    #  0.0362
 spaminess_score[~mask].mean()   # -0.00558
 
+""" !!!
+This is substantial oversimplification -- we estimated only direction
+and no constant!
+It may only work if `direction` is ~orthogonal to the overall mean of all data.
+Luckily it is the case here !!! see (*) below
+"""
+
 #%%
-cols = ['red' if m else 'black' for m in mask]
+cols = ['red' if m else 'yellow' for m in mask]
 plt.scatter(x=range(len(spaminess_score)), y=spaminess_score, s=.5, c=cols)
 #TODO better plot...
 
+#%%
 #%%
 from sklearn.preprocessing import MinMaxScaler
 
@@ -176,13 +220,13 @@ sms['lda_score'] = MinMaxScaler().fit_transform(spaminess_score.reshape(-1, 1))
 sms['lda_predict'] = (sms['lda_score'] > .5).astype(int)
 sms.head(20)
 
-errors = sum(abs(sms['spam'] - sms['lda_predict']))
+errors = sum( sms['spam'] != sms['lda_predict'] )
 errors   # 109
 err_rate = errors/len(mask)
 err_rate        # 0.0225
 1 - err_rate    # 0.977
 
-confusion = pd.crosstab(sms['spam'], sms['lda_predict'])   #!!!
+confusion = pd.crosstab(sms['spam'], sms['lda_predict'])                       #!!!
 confusion
 
 # or
@@ -198,6 +242,35 @@ ax.set_aspect(1)
 res = sn.heatmap(confusion, annot=True, fmt='.0f', cbar=False, cmap='YlGnBu')
 
 #%%
+#%% do the same on centralised data
+all_mean = sms_tfidf_arr.mean(axis=0)
+plt.plot(all_mean)
+
+all_mean.dot(direction)   # -7.090445918691126e-05
+"""!!! almost othogonal -- is this coincidence or STH DEEPER with TF-IDF ???     (*)
+Notice that TF-IDF works completely agnostic of any labels (here 'spam').
+It means that the example above is somehow designed (more or less).
+
+Normally, there is no quarantee that overall mean is orthogonal to the
+`direction` between classes -- it would be a miracle!
+
+The proper LDA estimates this overall mean
+via estimating surface of discrimination
+which has its `direction` parameter (say  A ) together with `constant`
+(say B in  Ax + B = 0  linear equation of this surface).
+
+For this data we got  B ~= 0.
+"""
+#%% extracting mean from all observations, here: rows !!!
+sms_tfidf_arr_0 = sms_tfidf_arr - np.tile(all_mean, (sms_tfidf.shape[0], 1))
+# sms_tfidf_arr_0.shape   # (4837, 9232)
+spaminess_score_0 = sms_tfidf_arr.dot(direction)     #!!!
+
+spaminess_score_0[mask].mean()    #  0.0362
+spaminess_score_0[~mask].mean()   # -0.00558
+# the same values as for non-cenered data -- what is obvious in view of  (*)
+
+#%%
 #%% topic-word matrix for LSA on 16 short sentences about cats, dogs and NYC
 from nlpia.book.examples.ch04_catdog_lsa_3x6x16 import word_topic_vectors
 word_topic_vectors
@@ -206,114 +279,8 @@ word_topic_vectors.T.round(1)
 # compare with weights matrix W above
 # still we don't know where these weights are taken from
 
-#%%
-#%%
-""" (2)
-SVD - SINGULAR VALUE DECOMPOSITION
-----------------------------------
-https://en.wikipedia.org/wiki/Singular_value_decomposition
-
-Transposition is `t`, `*` is conjugate transpose; both are the same for real matrices;
-`'` does NOT mean transposition here - it's only a sign;
-
-W = U S V*   (m x n) = m2 * (m x n) * n2
-U = [l_1, ..., l_m] - left singular vectors = left eigenvectors of WW*
-V = [r_1, ..., r_n] - righ singular vectors = right eigenvectors of W*W
-S = diag(s_1, ..., s_r; m, n), r <= min(m, n) - singular values of W
-    - square roots of the non-zero eigenvalues of both WW* and W*W
-      s_1 >= s_2 >= ... >= s_r
-This implies that
- W r_i = s_i l_i
-W* l_i = s_i r_i
-
-Then we may reduce dim taking only p larges singular values for some p <= min(m, n):
-W' = U' S' V'*   (m x p) = (m x p) * p2 * (p x n)
-i.e.
-S' = diag(s_1, ..., s_p)  - square!
-
-In the LSA context
-------------------
-W - (m x n) word-document matrix; TF-IDF or BOW;
-    every possible preprocessing should be applied - tokenise, stem, lemmatise, remove stop-words !
-    to avoid colinearity search for:
-        pairs/triplets/.. of words which always and only ever appear together (in the whole corpus)
-    like, e.g. 'ad hoc', 'status quo', 'merry christmass', ...
-    (why exactly it makes problem ??? )
-
-U - m2  word-topic matrix - as many topics as words ! (before reducing dim)
-S - (m x n)  variation of topics, from largest to smallest;
-Vt == V* - n2  topic-document matrix - as many topics as documents ! (before reducing dim)
-
-Hence 'topic' is a bit vague abstract concept above as their number differ between U and Vt matrices.
-However when we reduce dim by clipping to only p largest singular values, s_1, ..., s_p,
-then we end up with well determined number of 'topics', namely p:
-U'  - (m x p)  word-topic matrix
-S'  - p2       topic  variances
-Vt' - (p x n)  topic-document matrix
-
-Notice that comparing with (1) we have analogy:
-Vt' ~= T  (p x n)  topic-document
-Ut' ~= M  (p x m)  topic-word  weights
-
-"""
+word_topic_vectors.T @ word_topic_vectors   # almost orthonormal
+word_topic_vectors.T.dot(word_topic_vectors)   # almost orthonormal
 
 #%%
-from nlpia.book.examples.ch04_catdog_lsa_sorted import lsa_models, prettify_tdm
-
-# LSA on cats_and_dogs corpus
-bow_svd, tfidf_svd = lsa_models()
-bow_svd
-
-prettify_tdm(**bow_svd)
-
-bow_svd['tdm']          # (m x n)  word-doc
-bow_svd['u'].round(2)   # m2       word-topic
-bow_svd['s'].round(2)   # r = min(m, n)   topic variations; just vector - may be transform to (m x n) as below (*)
-bow_svd['vt'].round(2)  # n2       topic-doc
-
-#%%
-import numpy as np
-U, s, Vt = np.linalg.svd(bow_svd['tdm'])
-U.round(2)  #
-s.round(2)
-Vt.round(2)
-
-#%% (*)
-S = np.zeros((len(U), len(Vt)))
-np.fill_diagonal(S, s)
-S.round(2)
-
-#%%
-W = U @ S @ Vt
-W.round(1)
-bow_svd['tdm']           #!!! OK !!!
-
-#%% Term-document matrix reconstruction error, p.122
-errs = np.array([])
-Sprim = S.copy()
-for d in range(len(s), 0, -1):  # print(d)
-    print(Sprim.round(2))
-    Wprim = U @ Sprim @ Vt
-    err = np.sqrt( sum((bow_svd['tdm'] - Wprim).values.flatten() ** 2) )
-    print(err)
-    errs += [err]
-    if d > 0:
-        Sprim[d-1, d-1] = 0
-print([round(x, 2) for x in errs])
-
-#%%b
-from sklearn.feature_extraction.text import TfidfVectorizer
-from nltk.tokenize.casual import casual_tokenize
-
-tfidf = TfidfVectorizer(tokenizer = casual_tokenize)
-
-tfidf.fit(raw_documents = bow_svd['docs'])
-
-#%%
-
-#%%
-
-#%%
-
-
 #%%
