@@ -140,7 +140,7 @@ U'  - (m x p)  word-topic matrix
 S'  - p2       topic  variances
 Vt' - (p x n)  topic-document matrix
 
-Notice that comparing with (1) we have analogy:
+Notice that comparing with (1) (previous file) we have analogy:
 Vt' ~= T  (p x n)  topic-document
 Ut' ~= M  (p x m)  topic-word  weights
 
@@ -221,6 +221,7 @@ corpus = bow_svd['docs'].tolist()
 corpus
 
 def repl(string: str, noise: str):
+    """remove every sign in the `noise` from the `string`"""
     return reduce(lambda s, z: s.replace(z, ""), list(noise), string)
 # repl("a!bc$d-ef_g", "!$-_,?")   # 'przsab'
 

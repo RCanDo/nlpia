@@ -38,6 +38,8 @@ sources:
     - title: NLPIA GitHub repository
       link: https://github.com/totalgood/nlpia
     - link: https://github.com/jedijulia/porter-stemmer/blob/master/stemmer.py
+    - link: http://www.nltk.org/
+    - link: https://github.com/cjhutto/vaderSentiment
 file:
     usage:
         interactive: True   # if the file is intended to be run interactively e.g. in Spyder
@@ -89,7 +91,6 @@ df
 sentence_bow = {}
 for token in sentence.split():
     sentence_bow[token] = 1
-# this won't work if tokens repeat in the sentence
 
 sentence_bow
 sorted(sentence_bow.items())
@@ -196,13 +197,13 @@ tokens
 #%% built-in tokenizers
 #%% p.46
 
-from nltk.tokenize import RegexpTokenizer   #!!!
+from nltk.tokenize import RegexpTokenizer         #!!!
 tokenizer = RegexpTokenizer(r'\w+|$[0-9.]+|\S+')
 tokenizer.tokenize(sentence)
 
 #%% p.47
 
-from nltk.tokenize import TreebankWordTokenizer  #!!!
+from nltk.tokenize import TreebankWordTokenizer   #!!!
 
 sentence1 = """Monticello wasn't designated as UNESCO World Heritage Site until 1987."""
 
@@ -218,11 +219,15 @@ Awesommmmmmeeeeee day :*)"""
 casual_tokenize(message)
 casual_tokenize(message, reduce_len=True, strip_handles=True)
 
+tokenizer1.tokenize(message)  # TreebankWordTokenizer
+tokenizer.tokenize(message)   # RegexpTokenizer
+
 #%%
 #%% p.48 n-grams
 
 from nltk.util import ngrams  #!!! generator
 
+tokens
 list(ngrams(tokens, 2))
 list(ngrams(tokens, 3))
 
@@ -256,15 +261,19 @@ len(sklearn_stop_words.intersection(stop_words))  # 119
 [x.lower() for x in tokens]
 # hmmm... problematic
 
+#%%
 #%% stemming -- searching for the core of the word == getting rid of prefixes, suffixes, etc.
 
 #%% p.58 simple stemmer
 
-re.findall('^(.*ss|.*?)(s)?$', 'houses')
-re.findall('^(.*ss|.*)(s)?$', 'houses')      #! NO!!!
+re.findall('^(.*ss|.*?)(s)?$', 'houses')    # [('house', 's')]
+re.findall('^(.*ss|.*)(s)?$', 'houses')     # [('houses', '')]     NO!!!
 
-re.findall('^(.*ss|.*?)(s)?$', 'housess')
-re.findall('^(.*ss|.*)(s)?$', 'housess')     # the same
+re.findall('^(.*ss|.*?)s?$', 'houses')      # ['house']
+re.findall('^(.*ss|.*)s?$', 'houses')       # ['houses']
+
+re.findall('^(.*ss|.*?)(s)?$', 'housess')   # [('housess', '')]
+re.findall('^(.*ss|.*)(s)?$', 'housess')    # [('housess', '')]    the same
 
 
 def stem(phrase):
@@ -286,6 +295,7 @@ phrase = "dish washer's washing dishes"
 
 # see: https://github.com/jedijulia/porter-stemmer/blob/master/stemmer.py
 
+#%%
 #%% lemmatization -- searching for the core meaning / root of the word
 #!!! use before stemmer !!!
 
@@ -346,8 +356,19 @@ nltk.sentiment.vader
 # but here we use
 pip install vaderSentiment
 """
+# import vaderSentiment as vader
+# dir(vader)   # only vaderSentiment ...
+import vaderSentiment.vaderSentiment as vader
+dir(vader)
+"""
+https://github.com/cjhutto/vaderSentiment
+https://towardsdatascience.com/sentimental-analysis-using-vader-a3415fef7664
+"""
+
+#%%
 from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer  #!!!
 sa = SentimentIntensityAnalyzer()
+dir(sa)
 
 #%%
 sa.lexicon
@@ -376,10 +397,8 @@ for doc in corpus:
     scores = sa.polarity_scores(doc)
     print("{:+}: {}".format(scores['compound'], doc))
 
-
 #%%
 #%% p.65 Naive Bayes
-
 # using nlpia package - one must create nlpiaenv environment first...
 
 from nlpia.data.loaders import get_data
@@ -416,7 +435,7 @@ len(bags_of_words)  # 10605
 bags_of_words[:5]
 
 #%% to data frame
-df_bows = pd.DataFrame.from_records(bags_of_words)
+df_bows = pd.DataFrame.from_records(bags_of_words)          #!!!
 df_bows = df_bows.fillna(0).astype(int)
 df_bows.shape     # 10605, 20756
 df_bows.head()
@@ -464,11 +483,11 @@ movies.error.mean().round(2)   # 1.87
 #%%
 movies['sentiment_is_positive'] = (movies.sentiment > 0).astype(int)
 movies['predicted_is_positive'] = (movies.predicted_sentiment > 0).astype(int)
-movies['prediction_wrong'] = (movies.sentiment_is_positive - movies.predicted_is_positive).astype(int).abs()
+movies['prediction_wrong'] = (movies.sentiment_is_positive != movies.predicted_is_positive).astype(int)
 movies.prediction_wrong.sum()   # 695
 
-movies.prediction_wrong.abs().sum()/len(movies)        # 0.0655   error rate
-1 - movies.prediction_wrong.abs().sum()/len(movies)    # 0.93446  correct rate
+movies.prediction_wrong.mean()        # 0.0655   error rate
+1 - movies.prediction_wrong.mean()    # 0.93446  correct rate
 
 movies.columns
 movies.iloc[:99, [0, 2, 4, 5, 6]]

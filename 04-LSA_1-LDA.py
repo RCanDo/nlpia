@@ -97,7 +97,7 @@ pd.options.display.width = 120
 
 #%%
 """ (1)
-T = M * F,   (t x d) = (t x n) * (n x d),  d = len(corpus), n=len(vocab), t=len(topics)
+T = M * F,   (t x d) = (t x v) * (v x d),  d = len(corpus), v=len(vocab), t=len(topics)
 topic-document scores
     topic-words weights (aquired from ...? - to be shown later)
         words-document weights - usually TF-IDF; i.e.
@@ -130,12 +130,13 @@ M @ tfidf  # luckily it works for named tuples
 #%% How to acquire weights for M?
 
 #%%
-#%% LDA classifier (Linear Disccriminant Analysis)
+#%% LDA classifier (Linear Discriminant Analysis)
 
 from nlpia.data.loaders import get_data
 sms = get_data('sms-spam')
 type(sms)   # pandas.core.frame.DataFrame
-sms         # [4837 rows x 2 columns]
+sms.shape         # [4837 rows x 2 columns]
+sms.head()
 sms.dtypes  # spam     int64;  text    object
 
 sms.spam.sum()   # 638
@@ -147,9 +148,9 @@ from nltk.tokenize.casual import casual_tokenize
 
 tfidf = TfidfVectorizer(tokenizer = casual_tokenize)
 dir(tfidf)
-tfidf.vocabulary  # None
+tfidf.vocabulary   # None
 tfidf.fit(raw_documents = sms.text)
-tfidf.vocabulary  # None
+tfidf.vocabulary   # None
 tfidf.vocabulary_  # whole vocab {word: index}
 len(tfidf.vocabulary_)  # 9232
 plt.plot(sorted(tfidf.vocabulary_.values()))
@@ -176,13 +177,21 @@ plt.plot(sms_tfidf_arr[0])       # first row ~ doc
 plt.plot(sms_tfidf_arr[:, 0])    # first col ~ token
 
 #%% heatmap - takes a lot of time !!!
-fig = plt.figure()
-plt.clf()
-ax = fig.add_subplot(111)
-ax.set_aspect(1)
-res = sn.heatmap(sms_tfidf_arr) #, cmap='YlGnBu')
-#! Wow! It's hard to see any points different from 0 - very sparse matrix
+import matplotlib as mpl
+from matplotlib.colors import LinearSegmentedColormap
 
+colors = ["black", "cyan", "red", "white"]
+nodes = [0.0, 0.01, 0.1, 1.0]   # 'centers' of colors
+cmap = LinearSegmentedColormap.from_list("mycmap", list(zip(nodes, colors)))
+
+fig = plt.figure(figsize=[17, 11], tight_layout=True)
+#plt.clf()
+ax = fig.add_subplot(111)
+
+mappable = ax.pcolormesh(sms_tfidf_arr, cmap=cmap, rasterized=True, vmin=0, vmax=1)
+fig.colorbar(mappable, ax=ax)
+
+#%%
 #%% LDA - Linear Discriminant Analysis
 mask = sms.spam.astype(bool).values
 mask
@@ -203,7 +212,7 @@ spaminess_score[~mask].mean()   # -0.00558
 """ !!!
 This is substantial oversimplification -- we estimated only direction
 and no constant!
-It may only work if `direction` is ~orthogonal to the overall mean of all data.
+It may only work if `direction` is orthogonal to the overall mean of all data.
 Luckily it is the case here !!! see (*) below
 """
 
@@ -251,7 +260,7 @@ all_mean.dot(direction)   # -7.090445918691126e-05
 Notice that TF-IDF works completely agnostic of any labels (here 'spam').
 It means that the example above is somehow designed (more or less).
 
-Normally, there is no quarantee that overall mean is orthogonal to the
+Normally, there is no guarantee that overall mean is orthogonal to the
 `direction` between classes -- it would be a miracle!
 
 The proper LDA estimates this overall mean
@@ -270,6 +279,33 @@ spaminess_score_0[mask].mean()    #  0.0362
 spaminess_score_0[~mask].mean()   # -0.00558
 # the same values as for non-cenered data -- what is obvious in view of  (*)
 
+fig = plt.figure()
+ax = fig.add_subplot(111)
+cols = ['red' if m else 'yellow' for m in mask]
+ax.scatter(x=range(len(spaminess_score_0)), y=spaminess_score_0, s=.5, c=cols)
+
+#%%
+#%% proper LDA
+from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
+LDA = LinearDiscriminantAnalysis()
+lda = LDA.fit(sms_tfidf_arr, mask)
+sms['lda'] = lda.predict(sms_tfidf_arr)
+
+errors = sum( sms['spam'] != sms['lda'] )
+errors   # 0
+err_rate = errors/len(mask)
+err_rate        # 0   !!!
+1 - err_rate    # 1   !!!
+
+"""
+Perfect fit!
+Notice that we have more predictors (columns, Xs) then observations (rows).
+This is WHY!
+
+Moreover we didn't split data into test/train subsets.
+But it's just to present LinearDiscriminantAnalysis.
+"""
+
 #%%
 #%% topic-word matrix for LSA on 16 short sentences about cats, dogs and NYC
 from nlpia.book.examples.ch04_catdog_lsa_3x6x16 import word_topic_vectors
@@ -282,5 +318,4 @@ word_topic_vectors.T.round(1)
 word_topic_vectors.T @ word_topic_vectors   # almost orthonormal
 word_topic_vectors.T.dot(word_topic_vectors)   # almost orthonormal
 
-#%%
 #%%

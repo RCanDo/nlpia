@@ -112,7 +112,6 @@ for k, v in kite_counts.most_common():
     document_vector.append(v2)
     print("{:.4f}".format(v2))
 
-
 #%%
 #%% p. 77 digression on Harry...
 docs = [sentence]
